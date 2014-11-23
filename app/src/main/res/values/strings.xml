@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">MyFirstChromecast</string>
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
+    <string name="chromecast_connector_menu_item">Cast it!</string>
+    <string name="app_id">794B7BBF</string>
+    <string name="logo_url">http://www.tuxwebsolutions.nl/wp-content/uploads/2013/09/tux-web-solutions-logo.png</string>
+    <string name="loading_message">Hey you!\nYes you!\nStand still laddy!\n...yada...\n...yada...\n...yada...\n..something about bricks...\n</string>
+    <string name="chromecase_namespace">urn:x-cast:com.google.cast.sample.helloworld</string>
+
+</resources>

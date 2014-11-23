@@ -1,0 +1,16 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:context=".Chromecastify"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    >
+    <item android:id="@+id/action_settings"
+        android:title="@string/action_settings"
+        android:orderInCategory="100"
+        app:showAsAction="never" />
+    <item android:id="@+id/media_route_menu_item"
+
+          android:title="@string/chromecast_connector_menu_item"
+          app:actionProviderClass="android.support.v7.app.MediaRouteActionProvider"
+          app:showAsAction="always"
+        />
+</menu>
