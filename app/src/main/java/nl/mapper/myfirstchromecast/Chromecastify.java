@@ -22,7 +22,6 @@ import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.common.api.ResultCallback;
 import com.google.android.gms.common.api.Status;
-
 import java.io.IOException;
 
 
@@ -30,24 +29,13 @@ public class Chromecastify extends ActionBarActivity
 {
 
   private static final String TAG = Chromecastify.class.getSimpleName();
-  private MediaRouter.Callback mMediaRouterCallback;
-  MediaRouter chromecastRouter;
-  MediaRouteSelector chromecastSelector;
-  private String App_ID;
+  ChromeTour chromecast;
   @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chromecastify);
+    chromecast = new ChromeTour(getApplicationContext());
 
-      chromecastRouter = MediaRouter.getInstance(getApplicationContext());
-      App_ID = getString(R.string.app_id);
-      //App_ID = CastMediaControlIntent.DEFAULT_MEDIA_RECEIVER_APPLICATION_ID;
-
-
-      chromecastSelector = new MediaRouteSelector.Builder()
-          .addControlCategory(CastMediaControlIntent.categoryForCast(App_ID))
-          .build();
-      mMediaRouterCallback = new ChromecastRouterCallback();
     }
 
   class LeaderBoardChannel implements Cast.MessageReceivedCallback {
@@ -68,10 +56,11 @@ public class Chromecastify extends ActionBarActivity
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.chromecastify, menu);
-      MenuItem mediaRouteMenuItem = menu.findItem(R.id.media_route_menu_item);
-      MediaRouteActionProvider mediaRouteActionProvider =
-          (MediaRouteActionProvider) MenuItemCompat.getActionProvider(mediaRouteMenuItem);
-      mediaRouteActionProvider.setRouteSelector(chromecastSelector);
+      MenuItem ChromecastMenu = menu.findItem(R.id.media_route_menu_item);
+      if (ChromecastMenu != null)
+        chromecast.SetChromecastSelector(ChromecastMenu);
+
+      chromecast.Start();
       return true;
     }
 
@@ -82,6 +71,7 @@ public class Chromecastify extends ActionBarActivity
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
         if (id == R.id.action_settings) {
+          chromecast.sendMessage(getString(R.string.loading_message));
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -90,210 +80,27 @@ public class Chromecastify extends ActionBarActivity
   @Override
   protected void onResume() {
     super.onResume();
-    chromecastRouter.addCallback(chromecastSelector, mMediaRouterCallback,
-        MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY);
+    if (chromecast != null)
+    chromecast.Start();
   }
   @Override
   protected void onPause() {
     if (isFinishing()) {
-      chromecastRouter.removeCallback(mMediaRouterCallback);
+      chromecast.Stop();
     }
     super.onPause();
   }
   @Override
   protected void onStart() {
     super.onStart();
-    chromecastRouter.addCallback(chromecastSelector, mMediaRouterCallback,
-        MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY);
+    chromecast.Start();;
   }
 
   @Override
   protected void onStop() {
-    chromecastRouter.removeCallback(mMediaRouterCallback);
+    chromecast.Start();
     super.onStop();
   }
 
-  CastDevice selectedChromecast;
-  private class ChromecastRouterCallback extends MediaRouter.Callback {
-
-    @Override
-    public void onRouteSelected(MediaRouter router, MediaRouter.RouteInfo info) {
-      selectedChromecast = CastDevice.getFromBundle(info.getExtras());
-      String routeId = info.getId();
-      launchReceiver();
-
-    }
-    @Override
-    public void onRouteUnselected(MediaRouter router, MediaRouter.RouteInfo info) {
-      teardown();
-      selectedChromecast = null;
-    }
-
-    private GoogleApiClient apiClient;
-    private ConnectionCallbacks gapiConnectionCallbacks;
-    private ConnectionFailedListener gapiConnectionFailedListener;
-    private Cast.Listener mCastListener = new Cast.Listener() {
-      @Override
-      public void onApplicationStatusChanged() {
-        if (apiClient != null) {
-          Log.d(TAG, "onApplicationStatusChanged: "
-              + Cast.CastApi.getApplicationStatus(apiClient));
-        }
-      }
-
-      @Override
-      public void onVolumeChanged() {
-        if (apiClient != null) {
-          Log.d(TAG, "onVolumeChanged: " + Cast.CastApi.getVolume(apiClient));
-        }
-      }
-
-      @Override
-      public void onApplicationDisconnected(int errorCode) {
-        teardown();
-      }
-    };
-
-    private void launchReceiver()
-    {
-      try
-      {
-        // Connect to Google Play services
-        gapiConnectionCallbacks = new ConnectionCallbacks();
-        gapiConnectionFailedListener = new ConnectionFailedListener();
-        Cast.CastOptions.Builder apiOptionsBuilder = Cast.CastOptions
-            .builder(selectedChromecast, mCastListener);
-        apiClient = new GoogleApiClient.Builder(getApplicationContext())
-            .addApi(Cast.API, apiOptionsBuilder.build())
-            .addConnectionCallbacks(gapiConnectionCallbacks)
-            .addOnConnectionFailedListener(gapiConnectionFailedListener)
-            .build();
-
-        apiClient.connect();
-      }
-      catch (Exception e)
-      {
-        Log.e(TAG, "Failed launchReceiver", e);
-      }
-
-    }
-    private boolean mWaitingForReconnect;
-
-
-    private void reconnectChannels()
-    {
-      // TODO something?
-    }
-
-    private LeaderBoardChannel leaderChannel;
-    boolean chromecastApplicationLaunched;
-    private String chromecastSessionId;
-    private class ConnectionCallbacks implements
-        GoogleApiClient.ConnectionCallbacks {
-      @Override
-      public void onConnected(Bundle connectionHint) {
-        if (mWaitingForReconnect) {
-          mWaitingForReconnect = false;
-          reconnectChannels();
-        } else {
-          try {
-            Cast.CastApi.launchApplication(apiClient, App_ID, false)
-                .setResultCallback(
-                    new ResultCallback<Cast.ApplicationConnectionResult>()
-                    {
-                      @Override
-                      public void onResult(Cast.ApplicationConnectionResult result)
-                      {
-                        Status status = result.getStatus();
-                        if (status.isSuccess())
-                        {
-                          ApplicationMetadata applicationMetadata = result.getApplicationMetadata();
-                          chromecastSessionId = result.getSessionId();
-                          String applicationStatus = result.getApplicationStatus();
-                          boolean wasLaunched = result.getWasLaunched();
-                          chromecastApplicationLaunched = true;
-                          leaderChannel = new LeaderBoardChannel();
-                          try
-                          {
-                            Cast.CastApi.setMessageReceivedCallbacks(apiClient, leaderChannel.getNamespace(),leaderChannel);
-                            sendString(getString(R.string.loading_message));
-                          }
-                          catch (IOException e)
-                          {
-                            Log.e(TAG,"Failed to create chanel", e);
-                          }
-
-                        } else
-                        {
-                          teardown();
-                        }
-                      }
-                    });
-
-          } catch (Exception e) {
-            Log.e(TAG, "Failed to launch application", e);
-          }
-        }
-      }
-
-      @Override
-      public void onConnectionSuspended(int cause) {
-        mWaitingForReconnect = true;
-      }
-    }
-
-    private void sendString(String string) {
-      string = string.replace("\n","<br/>");
-      if (apiClient != null && leaderChannel != null) {
-        try {
-          Cast.CastApi.sendMessage(apiClient, leaderChannel.getNamespace(), string)
-              .setResultCallback(
-                  new ResultCallback<Status>() {
-                    @Override
-                    public void onResult(Status result) {
-                      if (!result.isSuccess()) {
-                        Log.e(TAG, "Sending message failed");
-                      }
-                    }
-                  });
-        } catch (Exception e) {
-          Log.e(TAG, "Exception while sending message", e);
-        }
-      }
-    }
-
-    private class ConnectionFailedListener implements
-        GoogleApiClient.OnConnectionFailedListener {
-      @Override
-      public void onConnectionFailed(ConnectionResult result) {
-        teardown();
-      }
-    }
-    private void teardown()
-    {
-      if (apiClient != null) {
-        if (chromecastApplicationLaunched) {
-          if (apiClient.isConnected() || apiClient.isConnecting()) {
-            try {
-              Cast.CastApi.stopApplication(apiClient, chromecastSessionId);
-              if (leaderChannel != null) {
-                Cast.CastApi.removeMessageReceivedCallbacks(apiClient,leaderChannel.getNamespace());
-                leaderChannel = null;
-              }
-            } catch (IOException e) {
-              Log.e(TAG, "Exception while removing channel", e);
-            }
-            apiClient.disconnect();
-          }
-          chromecastApplicationLaunched = false;
-        }
-        apiClient = null;
-      }
-      selectedChromecast = null;
-      mWaitingForReconnect = false;
-      chromecastSessionId = null;
-    }
-
-  }
 
 }

@@ -35,7 +35,7 @@ public class ChromeTour
   }
 
   private static final String TAG = Chromecastify.class.getSimpleName();
-  private MediaRouter.Callback mMediaRouterCallback;
+  private ChromecastRouterCallback mMediaRouterCallback;
   MediaRouter chromecastRouter;
   MediaRouteSelector chromecastSelector;
   private String App_ID;
@@ -77,56 +77,30 @@ public class ChromeTour
     mediaRouteActionProvider.setRouteSelector(chromecastSelector);
   }
 
-
-  @Override
-  public boolean onOptionsItemSelected(MenuItem item)
+  public void Start()
   {
-    // Handle action bar item clicks here. The action bar will
-    // automatically handle clicks on the Home/Up button, so long
-    // as you specify a parent activity in AndroidManifest.xml.
-    int id = item.getItemId();
-    if (id == R.id.action_settings)
-    {
-      return true;
-    }
-    return super.onOptionsItemSelected(item);
-  }
-
-  @Override
-  protected void onResume()
-  {
-    super.onResume();
     chromecastRouter.addCallback(chromecastSelector, mMediaRouterCallback,
         MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY);
   }
 
-  @Override
-  protected void onPause()
+  public void Stop()
   {
-    if (isFinishing())
-    {
       chromecastRouter.removeCallback(mMediaRouterCallback);
-    }
-    super.onPause();
-  }
-
-  @Override
-  protected void onStart()
-  {
-    super.onStart();
-    chromecastRouter.addCallback(chromecastSelector, mMediaRouterCallback,
-        MediaRouter.CALLBACK_FLAG_REQUEST_DISCOVERY);
-  }
-
-  @Override
-  protected void onStop()
-  {
-    chromecastRouter.removeCallback(mMediaRouterCallback);
-    super.onStop();
   }
 
   CastDevice selectedChromecast;
 
+  public boolean sendMessage(String message){
+    if(mMediaRouterCallback != null)
+    {
+      mMediaRouterCallback.sendString(message);
+      return true;
+    }
+    return false;
+
+
+
+  }
   private class ChromecastRouterCallback extends MediaRouter.Callback
   {
 
@@ -186,7 +160,7 @@ public class ChromeTour
         gapiConnectionFailedListener = new ConnectionFailedListener();
         Cast.CastOptions.Builder apiOptionsBuilder = Cast.CastOptions
             .builder(selectedChromecast, mCastListener);
-        apiClient = new GoogleApiClient.Builder(getApplicationContext())
+        apiClient = new GoogleApiClient.Builder(appContext)
             .addApi(Cast.API, apiOptionsBuilder.build())
             .addConnectionCallbacks(gapiConnectionCallbacks)
             .addOnConnectionFailedListener(gapiConnectionFailedListener)
@@ -207,6 +181,34 @@ public class ChromeTour
     private void reconnectChannels()
     {
       // TODO something?
+    }
+
+    public void sendString(String string)
+    {
+      string = string.replace("\n", "<br/>");
+      if (apiClient != null && leaderChannel != null)
+      {
+        try
+        {
+          Cast.CastApi.sendMessage(apiClient, leaderChannel.getNamespace(), string)
+              .setResultCallback(
+                  new ResultCallback<Status>()
+                  {
+                    @Override
+                    public void onResult(Status result)
+                    {
+                      if (!result.isSuccess())
+                      {
+                        Log.e(TAG, "Sending message failed");
+                      }
+                    }
+                  });
+        }
+        catch (Exception e)
+        {
+          Log.e(TAG, "Exception while sending message", e);
+        }
+      }
     }
 
     private LeaderBoardChannel leaderChannel;
@@ -246,7 +248,7 @@ public class ChromeTour
                           try
                           {
                             Cast.CastApi.setMessageReceivedCallbacks(apiClient, leaderChannel.getNamespace(), leaderChannel);
-                            sendString(getString(R.string.loading_message));
+
                           }
                           catch (IOException e)
                           {
@@ -272,34 +274,6 @@ public class ChromeTour
       public void onConnectionSuspended(int cause)
       {
         mWaitingForReconnect = true;
-      }
-    }
-
-    private void sendString(String string)
-    {
-      string = string.replace("\n", "<br/>");
-      if (apiClient != null && leaderChannel != null)
-      {
-        try
-        {
-          Cast.CastApi.sendMessage(apiClient, leaderChannel.getNamespace(), string)
-              .setResultCallback(
-                  new ResultCallback<Status>()
-                  {
-                    @Override
-                    public void onResult(Status result)
-                    {
-                      if (!result.isSuccess())
-                      {
-                        Log.e(TAG, "Sending message failed");
-                      }
-                    }
-                  });
-        }
-        catch (Exception e)
-        {
-          Log.e(TAG, "Exception while sending message", e);
-        }
       }
     }
 
